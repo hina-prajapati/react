@@ -5,7 +5,6 @@ import {
   FlatList,
   ActivityIndicator,
   StyleSheet,
-  TouchableOpacity,
   Alert,
   ScrollView,
   TouchableHighlight
@@ -43,7 +42,6 @@ function Items({ navigation }: { navigation: any }) {
   const [dataItems, setDataItems] = useState<ApiItem[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>(null);
-  const [showCategories, setShowCategories] = useState(true);  // State to control categories visibility
   const [searchText, setSearchText] = useState<string>("");
   const [suggestions, setSuggestions] = useState([]);
   const [searchResults, setSearchResults] = useState<ApiItem[]>([]);
@@ -64,18 +62,11 @@ function Items({ navigation }: { navigation: any }) {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(true);
-  const [favoriteItems, setFavoriteItems] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     fetchData();
     fetchCategories();
   }, []);
-
-
-  useEffect(() => {
-    // setQuantities([]);
-  }, [isButtonVisible, isFavouriteButton]);
-
 
   useEffect(() => {
     // Call filterData whenever the search text or selected category changes
@@ -105,8 +96,8 @@ function Items({ navigation }: { navigation: any }) {
         .then((res) => {
           // console.log("items", res);
           setDataItems(res);
-          // setRenderData(res);
-          // setNotFound(false);
+          setRenderData(res);
+          setNotFound(false);
           // const initialValues: { [key: string]: string } = {};
           // res.forEach((item: ApiItem) => {
           //   initialValues[item.items_id] = "";
@@ -164,40 +155,20 @@ function Items({ navigation }: { navigation: any }) {
       console.error("Error fetching categories:", error);
     }
   };
+
   const fetchItemsByCategory = async (categoryId: string) => {
     try {
-      const token = await AsyncStorage.getItem("my-key");
-  
-      if (!token) {
-        console.error("Error: Token not found");
-        return []; // Return an empty array if the token is missing
-      }
-  
+      const value = await AsyncStorage.getItem("my-key");
       const response = await fetch(`${Domain}/api/get-item?category_id=${categoryId}`, {
         method: "GET",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${value}` },
       });
-  
-      if (!response.ok) {
-        console.error("Error fetching items by category: ", response.statusText);
-        return []; // Return an empty array if the response is not OK
-      }
-  
-      const data = await response.json();
-  
-      if (!Array.isArray(data)) {
-        console.error("Error: Unexpected data format", data);
-        return []; // Return an empty array if the data is not an array
-      }
-  
-      return data; // Return the parsed data if all checks pass
-  
+      return await response.json();
     } catch (error) {
       console.error("Error fetching items by category:", error);
-      return []; // Return an empty array in case of any error
+      return [];
     }
   };
-
 
   // useEffect(() => {
   //   fetchData();
@@ -206,25 +177,24 @@ function Items({ navigation }: { navigation: any }) {
   //   // setQuantities([]);
   // }, [isButtonVisible, isFavouriteButton]);
 
+  useFocusEffect(
+    React.useCallback(() => {
+      setTextValues(Array(dataItems.length).fill(""));
+      setQuantities([]);
+      setButtonVisible(true);
+      setIsFavouriteButton(false);
+      setQuantityValue("");
+    }, [dataItems.length])
+  );
 
-  const handleCategoryChange = async (value: string | null) => {
-    setSelectedCategory(value);  // Set the selected category
-    setShowCategories(false);  // Hide category list when a category is selected
-    setLoading(true);  // Set loading to true before fetching data
-  
-    // Handle category selection
+  const handleCategoryChange = async (value: string) => {
+    setSelectedCategory(value);
     if (value === 'all') {
-      setFilteredData(dataItems);  // Show all items if 'all' is selected
-    } else if (value) {
-      // Fetch filtered items if a valid category is selected
-      const filteredItems = await fetchItemsByCategory(value);
-      setFilteredData(filteredItems);  // Update filtered data
+      setFilteredData(dataItems); // Show all items
     } else {
-      // Clear the filter if no valid category is selected
-      setFilteredData([]);
+      const filteredItems = await fetchItemsByCategory(value);
+      setFilteredData(filteredItems);
     }
-  
-    setLoading(false);  // Set loading to false after data is fetched
   };
 
   const filterData = () => {
@@ -241,29 +211,9 @@ function Items({ navigation }: { navigation: any }) {
     setFilteredData(filtered);
   };
 
-  // Function to handle item press and navigate to the details
-  const handleItemPress = (itemId) => {
-    const selectedItem = items.find(item => item.items_id === itemId);
-    
-    if (selectedItem) {
-      navigation.navigate('ItemDetails', {
-        categoryId: selectedItem.category_id, // Assuming there's a category_id property
-        itemId: selectedItem.items_id // Pass any additional data you may need
-      });
-    }
-  };
 
-  useFocusEffect(
-    React.useCallback(() => {
-      setTextValues(Array(dataItems.length).fill(""));
-      setQuantities([]);
-      setButtonVisible(true);
-      setIsFavouriteButton(false);
-      setQuantityValue("");
-    }, [dataItems.length])
-  );
 
-   const AddFavourite = async (id: number) => {
+  const AddFavourite = async (id: number) => {
     try {
       const value = await AsyncStorage.getItem("my-key");
       fetch(`${Domain}/api/add-favorites?items_id=${id}`, {
@@ -290,8 +240,6 @@ function Items({ navigation }: { navigation: any }) {
 
     // console.log("id", id);
   };
-  
-
  
   const ModalData = (
     grade: string,
@@ -509,66 +457,30 @@ function Items({ navigation }: { navigation: any }) {
   return (
   <ScrollView>
       <View style={styles.mainContainer}>
-      {showCategories && (  // Show category list only if showCategories is true
-        <View> 
-        <Text style={styles.texttt}>Our categories</Text>
-      <View style={styles.categoryListContainer}>
-      
-      {categories.map(category => (
-        <TouchableOpacity
-          key={category.category_id}
-          onPress={() => handleCategoryChange(category.category_id)}
-          style={[
-            styles.categoryItem,
-            selectedCategory === category.category_id && styles.activeCategory
-          ]}
-        >
-          <Text style={styles.categoryItemText}>{category.category}</Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-    </View>
-    )}
-    {!showCategories && ( // When a category is selected, show the dropdown and items
-        <View>
       <SearchBox setSearchText={setSearchText} onPress={Search} />
-
-     {/* Back button to show all categories */}
-     {selectedCategory && selectedCategory !== 'all' && (
-      <TouchableOpacity
-        onPress={() => {
-          setShowCategories(true); // Show categories again
-          setSelectedCategory(null); // Reset selected category
-        }}
-        style={styles.backButton}
-      >
-        <Text style={styles.backButtonText}>Back</Text>
-      </TouchableOpacity>
-    )}
       <View style={styles.pickerContainer}>
-      <Picker
-        selectedValue={selectedCategory}
-        onValueChange={handleCategoryChange}
-        style={styles.picker}
-        dropdownIconColor="#00C9E9" // This option can define the dropdown icon color if supported
-      >
-        <Picker.Item label="Select a category..." value={null} />
-        <Picker.Item label="All Items" value="all" />
-        {categories.map(category => (
-          <Picker.Item
-            key={category.category_id}
-            label={category.category}
-            value={category.category_id}
-          />
-        ))}
-      </Picker>
+      // <Picker
+      //   selectedValue={selectedCategory}
+      //   onValueChange={handleCategoryChange}
+      //   style={styles.picker}
+      //   dropdownIconColor="#00C9E9" // This option can define the dropdown icon color if supported
+      // >
+      //   <Picker.Item label="Select a category..." value={null} />
+      //   {categories.map(category => (
+      //     <Picker.Item
+      //       key={category.category_id}
+      //       label={category.category}
+      //       value={category.category_id}
+      //     />
+      //   ))}
+      // </Picker>
 
       <View style={styles.iconContainer}>
         <MaterialIcons name="arrow-drop-down" size={50} color="#00C9E9" />
       </View>
     </View>
-    </View>
-      )}
+
+
       {
         // showPlaceOrderButton
         shouldShowButton && (
@@ -586,8 +498,10 @@ function Items({ navigation }: { navigation: any }) {
         </TouchableHighlight>
         )
       }
-      {loading ? (
+
+      {dataItems.length === 0 ? (
         <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading....</Text>
         </View>
       ) : (
         <FlatList
@@ -663,8 +577,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden', // Ensures rounded corners are applied
     position: 'relative', // Needed for absolute positioning
     marginRight:10,
-    marginLeft:10,
-    marginVertical:16
+    marginLeft:10
   },
   iconContainer: {
     position: 'absolute',
@@ -677,49 +590,5 @@ const styles = StyleSheet.create({
     width: '100%',
     fontSize: 18,  // Set the base font size
     color: 'gray',  // Placeholder and default text color
-  },
-  categoryListContainer: {
-    marginVertical: 10,
-    borderColor: '#eee',
-    flexDirection: 'row',
-    justifyContent: 'flex-start', // Align items to start (left)
-    flexWrap: 'wrap', // Allow items to wrap to the next line
-  },
-  categoryItem: {
-    width:'48%',
-    fontSize: 18,
-    paddingVertical: 18,
-    borderWidth:2,
-    padding:16,
-    margin:2,
-    borderRadius:4,
-    borderColor: '#00C9E9', // Default border color
-    textAlign: 'center',
-    backgroundColor: 'white',
-  },
-  texttt: {
-    fontSize: 24,
-    marginVertical:20,
-    padding:5,
-    fontWeight:'600',
-    // color:'#00C9E9'
-  },
-  activeCategory: {
-    borderColor: '#00C9E9', // Highlight border color for active category
-  },
-  backButton: {
-    backgroundColor: '#00C9E9', // Adjust color based on your theme
-    padding: 6,
-    // borderRadius: 5,
-    alignItems: 'center',
-    marginTop: 10,
-    width:'20%',
-    margin:10
-  },
-  backButtonText: {
-    color: '#ffffff', // Text color for the back button
-    fontSize: 16,
-    fontWeight: 'bold', // Bold text for emphasis
-    textAlign:'center'
   },
 });

@@ -71,12 +71,6 @@ function Items({ navigation }: { navigation: any }) {
     fetchCategories();
   }, []);
 
-
-  useEffect(() => {
-    // setQuantities([]);
-  }, [isButtonVisible, isFavouriteButton]);
-
-
   useEffect(() => {
     // Call filterData whenever the search text or selected category changes
     filterData();
@@ -105,8 +99,8 @@ function Items({ navigation }: { navigation: any }) {
         .then((res) => {
           // console.log("items", res);
           setDataItems(res);
-          // setRenderData(res);
-          // setNotFound(false);
+          setRenderData(res);
+          setNotFound(false);
           // const initialValues: { [key: string]: string } = {};
           // res.forEach((item: ApiItem) => {
           //   initialValues[item.items_id] = "";
@@ -197,7 +191,7 @@ function Items({ navigation }: { navigation: any }) {
       return []; // Return an empty array in case of any error
     }
   };
-
+  
 
   // useEffect(() => {
   //   fetchData();
@@ -206,25 +200,22 @@ function Items({ navigation }: { navigation: any }) {
   //   // setQuantities([]);
   // }, [isButtonVisible, isFavouriteButton]);
 
-
-  const handleCategoryChange = async (value: string | null) => {
-    setSelectedCategory(value);  // Set the selected category
-    setShowCategories(false);  // Hide category list when a category is selected
-    setLoading(true);  // Set loading to true before fetching data
+  const handleCategoryChange = async (value: string) => {
+    setSelectedCategory(value);
+    setShowCategories(false); // Hide category list when a category is selected
   
-    // Handle category selection
+    // Set loading to true before fetching data
+    setLoading(true);
+  
     if (value === 'all') {
-      setFilteredData(dataItems);  // Show all items if 'all' is selected
-    } else if (value) {
-      // Fetch filtered items if a valid category is selected
-      const filteredItems = await fetchItemsByCategory(value);
-      setFilteredData(filteredItems);  // Update filtered data
+      setFilteredData(dataItems); // Show all items if 'all' is selected
     } else {
-      // Clear the filter if no valid category is selected
-      setFilteredData([]);
+      const filteredItems = await fetchItemsByCategory(value);
+      setFilteredData(filteredItems); // Update with fetched data
     }
   
-    setLoading(false);  // Set loading to false after data is fetched
+    // Set loading to false after data is set
+    setLoading(false);
   };
 
   const filterData = () => {
@@ -253,6 +244,12 @@ function Items({ navigation }: { navigation: any }) {
     }
   };
 
+  useEffect(() => {
+    // fetchData();
+    // setButtonVisible(true);
+    // setQuantities([]);
+  }, [isFavouriteButton]);
+
   useFocusEffect(
     React.useCallback(() => {
       setTextValues(Array(dataItems.length).fill(""));
@@ -263,34 +260,29 @@ function Items({ navigation }: { navigation: any }) {
     }, [dataItems.length])
   );
 
-   const AddFavourite = async (id: number) => {
-    try {
-      const value = await AsyncStorage.getItem("my-key");
-      fetch(`${Domain}/api/add-favorites?items_id=${id}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${value}`,
-          "Content-Type": "application/json",
-        },
-      })
-        .then((respo) => respo.json())
-        .then(() => {
-          Alert.alert("Alert", "Add to Favourite Tab", [
-            {
-              text: "OK",
-              onPress: () => setIsFavouriteButton(() => !isFavouriteButton),
-              style: "default",
-            },
-          ]);
-          //   console.log("res", res);
-        });
-    } catch (error: any) {
-      console.log("Error", error);
-    }
+const AddFavourite = async (id: number) => {
+  try {
+    const value = await AsyncStorage.getItem("my-key");
+    await fetch(`${Domain}/api/add-favorites?items_id=${id}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${value}`,
+        "Content-Type": "application/json",
+      },
+    });
 
-    // console.log("id", id);
-  };
-  
+    // Toggle favorite state locally
+    setFavoriteItems((prevFavorites) => ({
+      ...prevFavorites,
+      [id]: !prevFavorites[id],  // Toggle the favorite status
+    }));
+
+    Alert.alert("Alert", "Added to Favorite Tab", [{ text: "OK", style: "default" }]);
+
+  } catch (error) {
+    console.error("Error", error);
+  }
+};
 
  
   const ModalData = (
@@ -509,9 +501,11 @@ function Items({ navigation }: { navigation: any }) {
   return (
   <ScrollView>
       <View style={styles.mainContainer}>
+      <SearchBox setSearchText={setSearchText} onPress={Search} />
+      {/* Displaying the list of categories outside of the dropdown */}
       {showCategories && (  // Show category list only if showCategories is true
         <View> 
-        <Text style={styles.texttt}>Our categories</Text>
+        <Text style={styles.texttt}>All List Of Category</Text>
       <View style={styles.categoryListContainer}>
       
       {categories.map(category => (
@@ -531,8 +525,6 @@ function Items({ navigation }: { navigation: any }) {
     )}
     {!showCategories && ( // When a category is selected, show the dropdown and items
         <View>
-      <SearchBox setSearchText={setSearchText} onPress={Search} />
-
      {/* Back button to show all categories */}
      {selectedCategory && selectedCategory !== 'all' && (
       <TouchableOpacity
@@ -553,7 +545,6 @@ function Items({ navigation }: { navigation: any }) {
         dropdownIconColor="#00C9E9" // This option can define the dropdown icon color if supported
       >
         <Picker.Item label="Select a category..." value={null} />
-        <Picker.Item label="All Items" value="all" />
         {categories.map(category => (
           <Picker.Item
             key={category.category_id}
@@ -567,6 +558,7 @@ function Items({ navigation }: { navigation: any }) {
         <MaterialIcons name="arrow-drop-down" size={50} color="#00C9E9" />
       </View>
     </View>
+     
     </View>
       )}
       {
@@ -588,6 +580,7 @@ function Items({ navigation }: { navigation: any }) {
       }
       {loading ? (
         <View style={styles.loadingContainer}>
+          // <Text style={styles.loadingText}>Loading....</Text>
         </View>
       ) : (
         <FlatList
@@ -687,18 +680,17 @@ const styles = StyleSheet.create({
   },
   categoryItem: {
     width:'48%',
-    fontSize: 18,
-    paddingVertical: 18,
+    fontSize: 16,
+    paddingVertical: 14,
     borderWidth:2,
-    padding:16,
+    padding:12,
     margin:2,
     borderRadius:4,
-    borderColor: '#00C9E9', // Default border color
+    borderColor: '#ccc', // Default border color
     textAlign: 'center',
-    backgroundColor: 'white',
   },
   texttt: {
-    fontSize: 24,
+    fontSize: 20,
     marginVertical:20,
     padding:5,
     fontWeight:'600',
